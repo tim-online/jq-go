@@ -95,7 +95,19 @@ func Compile(proc string) (*Vm, error) {
 	s := new(Vm)
 	s.jq = C.jq_init()
 
-	err := compileJq(s.jq, proc)
+	err := compileJq(s.jq, proc, nil)
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
+func CompileArgs(proc string, args Args) (*Vm, error) {
+	s := new(Vm)
+	s.jq = C.jq_init()
+
+	err := compileJq(s.jq, proc, args)
 	if err != nil {
 		s.Close()
 		return nil, err
@@ -221,14 +233,20 @@ func isValid(jv C.jv) bool {
 }
 
 // compileJq compiles a program into the jq interpreter
-func compileJq(jq *C.jq_state, src string) error {
+func compileJq(jq *C.jq_state, src string, args Args) error {
 	var msg *C.char
 	C.set_err_cb(jq, &msg)
 	defer C.set_err_cb(jq, nil)
 	csrc := C.CString(src)
 	defer C.free(unsafe.Pointer(csrc))
+
+	jv, err := goToJv(args)
+	if err != nil {
+		return err
+	}
+
 	// TODO: use a SyntaxError type to split up Error from Expr
-	if C.jq_compile(jq, csrc) == 0 {
+	if C.jq_compile_args(jq, csrc, jv) == 0 {
 		return errors.New(C.GoString(msg))
 	}
 	return nil
@@ -247,6 +265,14 @@ func jvParse(p []byte) C.jv {
 	return C.jv_parse_sized(
 		(*C.char)(unsafe.Pointer(&p[0])),
 		C.int(len(p)))
+}
+
+func goToJv(v interface{}) (C.jv, error) {
+	p, err := json.Marshal(v)
+	if err != nil {
+		return C.jv{}, err
+	}
+	return jvParse(p), nil
 }
 
 /*
@@ -350,4 +376,11 @@ func dumpString(buf *bytes.Buffer, x C.jv) {
 		panic(err)
 	}
 	buf.Write(p)
+}
+
+type Args []Arg
+
+type Arg struct {
+	Name  string      `json:"name"`
+	Value interface{} `json:"value"`
 }
