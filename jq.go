@@ -8,7 +8,7 @@
 */
 package jq
 
-// #cgo LDFLAGS: -l jq
+// #cgo LDFLAGS: -l:libjq.a -l:libonig.a -lm
 // #include "jq.h"
 // #include <stdlib.h>
 /*
