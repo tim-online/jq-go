@@ -92,10 +92,15 @@ func MustCompile(proc string) *Vm {
 
 // Compile compiles a JQ filter into a new JQ virtual machine.
 func Compile(proc string) (*Vm, error) {
+	var err error
 	s := new(Vm)
-	s.jq = C.jq_init()
+	s.jq, err = Init()
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
 
-	err := compileJq(s.jq, proc, nil)
+	err = compileJq(s.jq, proc, nil)
 	if err != nil {
 		s.Close()
 		return nil, err
@@ -104,15 +109,36 @@ func Compile(proc string) (*Vm, error) {
 }
 
 func CompileArgs(proc string, args Args) (*Vm, error) {
+	var err error
 	s := new(Vm)
-	s.jq = C.jq_init()
+	s.jq, err = Init()
 
-	err := compileJq(s.jq, proc, args)
+	err = compileJq(s.jq, proc, args)
 	if err != nil {
 		s.Close()
 		return nil, err
 	}
 	return s, nil
+}
+
+func Init() (*C.jq_state, error) {
+	jq := C.jq_init()
+
+	// This must be initialized even if empty or imports will fail
+	// an assertion in the jq library.
+	jattr, err := goToJv("JQ_LIBRARY_PATH")
+	if err != nil {
+		return jq, err
+	}
+
+	paths := []string{"."}
+	jval, err := goToJv(paths)
+	if err != nil {
+		return jq, err
+	}
+
+	C.jq_set_attr(jq, jattr, jval)
+	return jq, nil
 }
 
 // A Vm encloses the internal state of a compiled JQ filter machine.  Vm's
@@ -237,6 +263,7 @@ func compileJq(jq *C.jq_state, src string, args Args) error {
 	var msg *C.char
 	C.set_err_cb(jq, &msg)
 	defer C.set_err_cb(jq, nil)
+
 	csrc := C.CString(src)
 	defer C.free(unsafe.Pointer(csrc))
 
