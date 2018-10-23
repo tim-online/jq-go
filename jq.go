@@ -27,6 +27,18 @@ static void set_err_cb(jq_state *jq, const char **msg) {
 	jq_set_error_cb(jq, on_jq_err, msg);
 }
 
+static void debug_cb(void *data, jv input) {
+	int dumpopts = *(int *)data;
+	jv_dumpf(JV_ARRAY(jv_string("DEBUG:"), input), stderr, dumpopts & ~(JV_PRINT_PRETTY));
+	fprintf(stderr, "\n");
+}
+
+void go_debug_cb(void *data, jv input);
+
+static void jq_set_go_debug_cb(jq_state *jq, int dumpopts) {
+	jq_set_debug_cb(jq, debug_cb, &dumpopts);
+}
+
 // gets the error string, if any, associated with jv; the resulting pointer
 // is valid only as long as value is
 static const char* get_jv_error(jv value) {
@@ -44,6 +56,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"unsafe"
 )
 
@@ -138,6 +151,9 @@ func Init() (*C.jq_state, error) {
 	}
 
 	C.jq_set_attr(jq, jattr, jval)
+
+	dumpopts := C.int(4)
+	C.jq_set_go_debug_cb(jq, dumpopts)
 	return jq, nil
 }
 
@@ -410,4 +426,11 @@ type Args []Arg
 type Arg struct {
 	Name  string      `json:"name"`
 	Value interface{} `json:"value"`
+}
+
+//export go_debug_cb
+func go_debug_cb(data unsafe.Pointer, jv C.jv) {
+	dumpopts := ((*C.int)(data))
+	log.Println(*dumpopts)
+	// do something
 }
