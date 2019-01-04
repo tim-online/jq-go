@@ -421,7 +421,12 @@ func dumpString(buf *bytes.Buffer, x C.jv) {
 	buf.Write(p)
 }
 
-type Args map[string]interface{}
+type Args []Arg
+
+type Arg struct {
+	Name  string      `json:"name"`
+	Value interface{} `json:"value"`
+}
 
 //export go_debug_cb
 func go_debug_cb(data unsafe.Pointer, jv C.jv) {
