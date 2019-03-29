@@ -36,7 +36,7 @@ static void debug_cb(void *data, jv input) {
 void go_debug_cb(void *data, jv input);
 
 static void jq_set_go_debug_cb(jq_state *jq, int dumpopts) {
-	jq_set_debug_cb(jq, debug_cb, &dumpopts);
+	jq_set_debug_cb(jq, go_debug_cb, &dumpopts);
 }
 
 // gets the error string, if any, associated with jv; the resulting pointer
@@ -55,8 +55,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
-	"log"
+	"os"
 	"unsafe"
 )
 
@@ -428,9 +429,15 @@ type Arg struct {
 	Value interface{} `json:"value"`
 }
 
+var Log func(v ...interface{})
+
+func init() {
+	Log = func(v ...interface{}) {
+		fmt.Fprintln(os.Stderr, v)
+	}
+}
+
 //export go_debug_cb
-func go_debug_cb(data unsafe.Pointer, jv C.jv) {
-	dumpopts := ((*C.int)(data))
-	log.Println(*dumpopts)
-	// do something
+func go_debug_cb(data unsafe.Pointer, input C.jv) {
+	Log(string(dumpJv(input)))
 }
